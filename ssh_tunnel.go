@@ -4,6 +4,7 @@ import (
 	"io"
 	"net"
 
+	"github.com/getsentry/sentry-go"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -30,6 +31,8 @@ func (tunnel *SSHTunnel) logf(fmt string, args ...interface{}) {
 }
 
 func newConnectionWaiter(listener net.Listener, c chan net.Conn) {
+	defer sentry.Recover()
+
 	conn, err := listener.Accept()
 	if err != nil {
 		return
@@ -90,6 +93,8 @@ func (tunnel *SSHTunnel) Start() error {
 }
 
 func (tunnel *SSHTunnel) forward(localConn net.Conn) {
+	defer sentry.Recover()
+
 	serverConn, err := ssh.Dial("tcp", tunnel.Server.String(), tunnel.Config)
 	if err != nil {
 		tunnel.logf("server dial error: %s", err)
@@ -97,7 +102,7 @@ func (tunnel *SSHTunnel) forward(localConn net.Conn) {
 	}
 	tunnel.logf("connected to %s (1 of 2)\n", tunnel.Server.String())
 	tunnel.SvrConns = append(tunnel.SvrConns, serverConn)
-	
+
 	remoteConn, err := serverConn.Dial("tcp", tunnel.Remote.String())
 	if err != nil {
 		tunnel.logf("remote dial error: %s", err)
@@ -106,6 +111,8 @@ func (tunnel *SSHTunnel) forward(localConn net.Conn) {
 	tunnel.Conns = append(tunnel.Conns, remoteConn)
 	tunnel.logf("connected to %s (2 of 2)\n", tunnel.Remote.String())
 	copyConn := func(writer, reader net.Conn) {
+		defer sentry.Recover()
+
 		_, err := io.Copy(writer, reader)
 		if err != nil {
 			tunnel.logf("io.Copy error: %s", err)
